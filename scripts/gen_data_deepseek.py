@@ -27,13 +27,13 @@ TARGET_TYPES = [
 # ================= Prompt 模版 =================
 def get_prompt(logic_type, count):
     return f"""
-    请生成 {count} 条中文情感分析句子。
+    请生成 {count} 条符合要求的中文句子，用于测试基于transformer语言模型的中文语言的逻辑理解能力。
         【核心约束】
     1. **所有句子的逻辑类型必须是：[{logic_type}]**。
     2. 情感标签 (label) 只能是：'Positive' 或 'Negative'。
     3. 风格：口语化、真人叙述风格，而不是像AI生成的那样。
         【类型参考】
-    - **双重否定**：我不得不承认这很好。(Positive)
+    - **双重否定**：我不得不承认这是个好计划。(Positive)
     - **反讽**：这续航真是绝了，出门必带充电宝。(Negative)
     - **转折关系**：虽然很贵，但真香。(Positive)
     - **简单句**：这个电影真难看。(Negative)
@@ -53,10 +53,10 @@ if __name__ == "__main__":
     print(f"[PLAN] 计划生成: {len(TARGET_TYPES)} 个类型 x {COUNT_PER_TYPE} 条 = {len(TARGET_TYPES)*COUNT_PER_TYPE} 条")
 
     all_data = []
-    # 外层循环：遍历类型
+    # 遍历类型
     for t_type in tqdm(TARGET_TYPES, desc="类别进度"):
         try:
-            # 内层：单次 API 调用生成该类别的所有数据
+            # 单次 API 调用生成该类别的所有数据
             response = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
             content = response.choices[0].message.content
 
-            # 解决可能的编码问题，确保文本格式无误
+            # 确保文本格式无误
             content = content.replace("```json", "").replace("```", "").strip()
 
             # 处理 JSON 解析错误的可能性
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         # 简单去重
         df.drop_duplicates(subset=["text"], inplace=True)
 
-        filename = "deepseek_structured_data.csv"
+        filename = "data/deepseek_structured_data.csv"
         df.to_csv(filename, index=False)
 
         print("\n" + "="*40)

@@ -5,8 +5,6 @@ import torch
 import wandb
 import os
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
 
 # ================= 1. WandB 初始化 =================
 wandb.init(project="logic_sentiment_test", entity="mengzhongren-sun-yat-sen-university", name="bert_logic_eval")
@@ -63,11 +61,11 @@ for _, row in report.iterrows():
 
 print("\n📊 逻辑陷阱能力评估报告")
 print(report.to_markdown(index=False))
-report.to_csv('result/accuracy_report_v2.csv',index=False)
 
 # ================= 8. 保存预测结果 =================
 os.makedirs("result", exist_ok=True)
 output_file = "result/logic_test_result_v2.csv"
+report.to_csv('result/accuracy_report_v2.csv',index=False)
 df.to_csv(output_file, index=False)
 print(f"💾 详细结果已保存至: {output_file}")
 wandb.save(output_file)
@@ -75,7 +73,7 @@ wandb.save(output_file)
 # ================= 10. Bad Case 分析 =================
 bad_cases = df[df["Is_Correct"] == False]
 for t in df["type"].unique():
-    t_bad = bad_cases[bad_cases["type"] == t].head(10)  # 每类取前10条
+    t_bad = bad_cases[bad_cases["type"] == t]
     if not t_bad.empty:
         wandb.log({f"bad_cases/{t}": wandb.Table(data=t_bad, columns=t_bad.columns.tolist())})
 
