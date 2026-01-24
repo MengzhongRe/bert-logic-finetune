@@ -1,0 +1,16 @@
+# 数据处理与分析
+pandas
+tqdm
+scikit-learn
+matplotlib
+seaborn
+
+# 深度学习模型
+torch
+transformers
+
+# 实验追踪
+wandb
+
+# 大模型 API 调用
+openai
