@@ -15,16 +15,20 @@ warnings.filterwarnings('ignore', category=UserWarning)
 matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimSun', 'WenQuanYi Zen Hei', 'Heiti TC']  # 兜底字体，Linux必带
 matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 matplotlib.rcParams['font.family'] = 'sans-serif'
-# 屏蔽Matplotlib字体查找的冗余日志（关键：消除findfont警告）
+# 屏蔽Matplotlib字体查找的冗余日志（关键：消除findfont警告
 sns.set(rc={'figure.figsize': (10, 6)}, font='sans-serif')  # Seaborn不用指定具体中文字体，用兜底即可
 
-PATH = 'result/v4'
+NUMBER = 3
+PATH = f'data/test_result/v{NUMBER}'
+csv_path = f"data/raw/deepseek_structured_data_cyclic_domain_960_v{NUMBER}.csv"
+
 # ================= 1. WandB 初始化（增加备注，方便后续对比） =================
 wandb.init(
     project="logic_sentiment_test", 
     entity="mengzhongren-sun-yat-sen-university", 
     name="bert_logic_eval_base",  # 后缀加base，区分微调后的模型
-    notes="uer/roberta-base-finetuned-dianping-chinese 基准模型评估，按句式/领域双维度统计"
+    notes="uer/roberta-base-finetuned-dianping-chinese 基准模型评估，按句式/领域双维度统计",
+    mode='offline'
 )
 
 # ================= 2. 配置环境（增加GPU信息打印，方便排查） =================
@@ -50,7 +54,6 @@ classifier = pipeline(
 )
 
 # ================= 4. 读取数据（增加数据校验，避免空数据/字段缺失） =================
-csv_path = "data/big_data_960/deepseek_structured_data_cyclic_domain.csv"
 required_cols = ["text", "label", "type", "domain"]  # 核心字段校验
 try:
     df = pd.read_csv(csv_path)
