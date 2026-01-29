@@ -21,8 +21,8 @@ COUNT_PER_TYPE_PER_DOMAIN = 40  # 单句式单领域生成N条 → 总条数=4�
 
 # 情感/保存配置
 SENTIMENT_LABELS = ["Positive", "Negative"]
-SAVE_DIR = "data/raw"
-SAVE_FILENAME = os.path.join(SAVE_DIR, "deepseek_structured_data_cyclic_domain_960_v3.csv")
+SAVE_DIR = "data/test"
+SAVE_FILENAME = os.path.join(SAVE_DIR, "deepseek_structured_data_cyclic_domain_960.csv")
 
 # 反讽配比配置（单领域内按此配比）
 IRONIC_POS_RATIO = 0.2

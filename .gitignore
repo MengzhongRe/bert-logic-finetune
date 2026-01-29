@@ -1,5 +1,24 @@
+# Python 缓存
 __pycache__/
+*.py[cod]
 
+# 环境变量与密钥 (WandB密钥等绝对不能传!)
+.env
 wandb/
-.vscode/
 
+# IDE 配置
+.vscode/
+.idea/
+
+# 大文件与模型权重 (GitHub 限制 100MB，模型通常几个G，传不上去的)
+roberta_finetuned_model/
+*.bin
+*.safetensors
+
+# 可能会变的日志目录 (保留示例图即可，不用传所有过程日志)
+# 建议手动挑选几张好看的图和最终CSV放到一个 assets 文件夹，把原始日志忽略
+roberta_training_logs/
+
+# 虚拟环境
+venv/
+.venv/

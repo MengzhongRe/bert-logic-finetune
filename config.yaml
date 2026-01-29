@@ -1,0 +1,40 @@
+# 根目录 config.yaml
+# 新增：WandB实验配置
+wandb:
+  project_name: bert_logic_finetune  # WandB项目名
+  run_name: roberta_logic_finetune_v1  # 实验名（自定义，区分不同实验）
+# 新增：日志保存配置
+log:
+  save_dir: ./roberta_training_logs  # 本地日志/可视化图片保存目录
+  save_format: csv  # 日志保存格式
+# 模型配置
+model:
+  model_name: "uer/roberta-base-finetuned-dianping-chinese"  # 预训练基座模型
+  num_labels: 2                                              # 情感二分类（0/1）
+  max_seq_len: 48                                            # 适配6-35字短文本，减显存
+  output_dir: "./roberta_finetuned_model"         # 模型/分词器保存路径
+  log_dir:  "./roberta_training_logs"                                      # 训练日志保存路径
+
+# 数据配置
+data:
+  train_path: "data/train/train.csv"  # 训练集路径
+  val_path: "data/train/val.csv"      # 验证集路径
+  test_path: "data/train/test.csv"    # 测试集路径
+  manual_test_path: "data/test/deepseek_structured_data_cyclic_domain_960.csv"
+# 训练配置（RTX 5070 Ti 16G专属最优配置）
+train:
+  batch_size: 64
+  learning_rate: 0.00003
+  num_epochs: 20
+  weight_decay: 0.01
+  save_total_limit: 3                # 仅保留最近3个最优模型
+  logging_steps: 50                  # 每50步打印训练日志
+  early_stopping_patience: 3         # 验证集F1 3轮不涨则早停
+  main_metric: "f1"                  # 选最优模型的核心指标（适配类别不平衡）
+  fp16: true                         # 开启混合精度训练（显卡支持）
+  report_to: "wandb"                  # 仅本地日志，后续扫参可改"wandb"
+
+# 设备配置
+device:
+  auto_detect: true  # 自动检测GPU/CPU，false则手动指定device
+  manual_device: "cpu"  # 自动检测失效时生效
