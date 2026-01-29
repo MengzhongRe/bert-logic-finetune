@@ -155,5 +155,5 @@ print(f"预测结果: {'正面' if pred==1 else '负面'}")
 
 ---
 
-**Author**: Mengzhongren
+**Author**: MengzhongRe
 **Contact**: [1217820711@qq.com]
