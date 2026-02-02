@@ -2,44 +2,63 @@
 import torch
 import pandas as pd
 import numpy as np
+import os
 from pathlib import Path
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from scripts.utils import cfg
-
-test_path = cfg["data"]["test_path"]
-# 基准线（用于对比提升幅度）
-BASELINE = {
-    "logic": {"简单句": 0.9250, "双重否定": 0.8750, "转折关系": 0.8583, "反讽": 0.8208},
-    "domain": {"影视娱乐": 0.9375, "美食餐饮": 0.9000, "购物消费": 0.8750, "生活服务": 0.8688, "出行旅游": 0.8438, "日常社交": 0.7938},
-    "hard_cases": {"反讽_日常社交": 0.6750, "双重否定_生活服务": 0.7500}
-}
-
-def print_diff(new_acc, old_acc):
-    """生成带涨跌符号的字符串"""
-    diff = new_acc - old_acc
-    if diff > 0: return f"{new_acc:.2%} (🔺+{diff:.2%})"
-    elif diff < 0: return f"{new_acc:.2%} (🔻{diff:.2%})"
-    else: return f"{new_acc:.2%} (➖)"
+# ✅ 引入必要的 sklearn 指标库
+from sklearn.metrics import accuracy_score, f1_score, classification_report
 
 def save_report_to_file(lines, save_path):
     """保存文本报告"""
     with open(save_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-def run_detailed_eval(model, tokenizer,device,test_path=test_path):
+def calculate_metrics(df_subset, pred_col='pred', label_col='label'):
     """
-    执行详细评估的主函数
-    :param model: 训练好的模型对象
-    :param tokenizer: 分词器
-    :param device: 运行设备
+    ✅ 修改后的核心指标计算函数：
+    返回: Accuracy, Macro-F1, Recall_0(负面), Recall_1(正面), Count
     """
-    log_dir = Path(cfg["model"]["log_dir"])
+    if len(df_subset) == 0:
+        return 0.0, 0.0, 0.0, 0.0, 0
+
+    y_true = df_subset[label_col]
+    y_pred = df_subset[pred_col]
+
+    # 1. 全局准确率 (Accuracy)
+    acc = accuracy_score(y_true, y_pred)
     
-    print(f"\n🔎 正在对测试集进行【细粒度能力体检】...")
+    # 2. Macro-F1 (宏平均F1，更能反映模型综合能力，防止偏科)
+    macro_f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+
+    # 3. 获取详细分报告以提取 Recall_0 和 Recall_1
+    # output_dict=True 返回字典格式
+    report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
     
-    # 1. 读取原始CSV（因为我们需要 type 和 domain 列，Dataset对象里可能已经被处理掉了）
+    # 提取负面(0)和正面(1)的召回率
+    # 字典的key通常是字符串 '0' 和 '1'
+    rec_0 = report.get('0', {}).get('recall', 0.0)
+    rec_1 = report.get('1', {}).get('recall', 0.0)
+
+    return acc, macro_f1, rec_0, rec_1, len(df_subset)
+
+def run_detailed_eval(model, tokenizer, device, test_path, output_dir='eval_results'):
+    """
+    执行详细评估的主函数 (已适配新指标)
+    """
+    # 确保输出目录存在
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    print(f"\n🔎 正在对数据集进行评估: {test_path}")
+    
+    # 1. 读取数据
+    if not os.path.exists(test_path):
+        print(f"❌ 错误：找不到测试文件 {test_path}")
+        return
+
     df = pd.read_csv(test_path)
+    # 确保标签是int类型
+    df['label'] = df['label'].astype(int)
     texts = df["text"].tolist()
     
     # 2. 批量推理
@@ -47,10 +66,9 @@ def run_detailed_eval(model, tokenizer,device,test_path=test_path):
     all_preds = []
     batch_size = 32
     
-    # 使用 tqdm 显示进度
     for i in tqdm(range(0, len(texts), batch_size), desc="推理中", leave=False):
         batch_texts = texts[i : i + batch_size]
-        inputs = tokenizer(batch_texts, padding=True, truncation=True, max_length=64, return_tensors="pt").to(device)
+        inputs = tokenizer(batch_texts, padding=True, truncation=True, max_length=128, return_tensors="pt").to(device)
         with torch.no_grad():
             outputs = model(**inputs)
             preds = torch.argmax(outputs.logits, dim=-1).cpu().numpy()
@@ -59,46 +77,93 @@ def run_detailed_eval(model, tokenizer,device,test_path=test_path):
     df["pred"] = all_preds
     df["is_correct"] = df["pred"] == df["label"]
     
-    # 3. 生成报告内容
+    # 3. 计算全局指标 (✅ 这里解包 5 个变量)
+    total_acc, total_macro_f1, total_rec0, total_rec1, total_count = calculate_metrics(df)
+    
+    # --- 生成报告内容 ---
     report_lines = []
     report_lines.append("="*60)
-    report_lines.append(f"📊 模型能力详细评估报告 (Run: {cfg['train'].get('run_name')})")
+    report_lines.append(f"📊 模型评估报告 | 模型: uer/roberta-base-finetuned-dianping-chinese")
+    report_lines.append(f"📂 数据集: {test_path}")
     report_lines.append("="*60)
     
-    # --- 维度1：逻辑句式 ---
-    report_lines.append("\n【1. 逻辑句式能力 (Logic Type)】")
-    report_lines.append(f"{'类型':<10} | {'样本':<5} | {'基准':<8} | {'当前 (变化)'}")
-    report_lines.append("-" * 50)
-    for type_, score in df.groupby("type")["is_correct"].mean().items():
-        base = BASELINE["logic"].get(type_, 0)
-        report_lines.append(f"{type_:<10} | {len(df[df['type']==type_]):<5} | {base:.2%} | {print_diff(score, base)}")
+    # ✅ 更新全局报告文本
+    report_lines.append("\n【1. 全局指标 (Global Metrics)】")
+    report_lines.append(f"样本总数: {total_count}")
+    report_lines.append(f"准确率 (Accuracy)   : {total_acc:.2%}")
+    report_lines.append(f"宏平均F1 (Macro-F1) : {total_macro_f1:.2%}")
+    report_lines.append(f"负面召回 (Recall_0) : {total_rec0:.2%} (正话反说/双重否定能力)")
+    report_lines.append(f"正面召回 (Recall_1) : {total_rec1:.2%} (反话正说能力)")
 
-    # --- 维度2：垂直领域 ---
-    report_lines.append("\n【2. 垂直领域能力 (Domain)】")
-    report_lines.append(f"{'领域':<10} | {'样本':<5} | {'基准':<8} | {'当前 (变化)'}")
-    report_lines.append("-" * 50)
-    for dom, score in df.groupby("domain")["is_correct"].mean().items():
-        base = BASELINE["domain"].get(dom, 0)
-        report_lines.append(f"{dom:<10} | {len(df[df['domain']==dom]):<5} | {base:.2%} | {print_diff(score, base)}")
+    # --- 维度2：分句式能力 (By Sentence Type) ---
+    report_lines.append("\n【2. 句式维度评估 (By Logic Type)】")
+    type_stats = []
+    for type_, group in df.groupby("type"):
+        # ✅ 循环内解包 5 个变量
+        acc, mf1, rec0, rec1, count = calculate_metrics(group)
+        type_stats.append({
+            "句式": type_, 
+            "样本数": count, 
+            "准确率": acc, 
+            "Macro-F1": mf1,
+            "负面召回": rec0,
+            "正面召回": rec1
+        })
+    
+    # 转为DataFrame
+    df_type_stats = pd.DataFrame(type_stats).sort_values(by="Macro-F1", ascending=False)
+    report_lines.append(df_type_stats.to_markdown(index=False, floatfmt=".2%"))
 
-    # --- 维度3：全局 ---
-    total_acc = df["is_correct"].mean()
-    report_lines.append("\n" + "="*60)
-    report_lines.append(f"🏆 全局准确率 (Overall Accuracy): {total_acc:.2%}")
-    report_lines.append("="*60)
+    # --- 维度3：分领域能力 (By Domain) ---
+    report_lines.append("\n【3. 领域维度评估 (By Domain)】")
+    domain_stats = []
+    for dom, group in df.groupby("domain"):
+        # ✅ 循环内解包 5 个变量
+        acc, mf1, rec0, rec1, count = calculate_metrics(group)
+        domain_stats.append({
+            "领域": dom, 
+            "样本数": count, 
+            "准确率": acc, 
+            "Macro-F1": mf1,
+            "负面召回": rec0,
+            "正面召回": rec1
+        })
+    df_domain_stats = pd.DataFrame(domain_stats).sort_values(by="Macro-F1", ascending=False)
+    report_lines.append(df_domain_stats.to_markdown(index=False, floatfmt=".2%"))
 
+    # --- 维度4：句式-领域 交叉评估 (By Type-Domain Pair) ---
+    report_lines.append("\n【4. 句式-领域 交叉评估 (Type-Domain Pair)】")
+    pair_stats = []
+    for (type_, dom), group in df.groupby(["type", "domain"]):
+        # ✅ 循环内解包 5 个变量
+        acc, mf1, rec0, rec1, count = calculate_metrics(group)
+        pair_stats.append({
+            "句式": type_, 
+            "领域": dom, 
+            "样本数": count, 
+            "准确率": acc, 
+            "Macro-F1": mf1,
+            "负面召回": rec0,
+            "正面召回": rec1
+        })
+    df_pair_stats = pd.DataFrame(pair_stats).sort_values(by=["句式", "Macro-F1"], ascending=[True, False])
+    
+    report_lines.append("(完整表格请查看生成的 metrics_by_pair.csv 文件)")
+    report_lines.append(df_pair_stats.head(10).to_markdown(index=False, floatfmt=".2%"))
+    
     # 4. 打印并保存
     report_str = "\n".join(report_lines)
-    print(report_str) # 打印到控制台
+    print(report_str) 
     
-    # 保存报告文本
-    report_path = log_dir / "detailed_report.txt"
-    save_report_to_file(report_lines, report_path)
+    # --- 保存各类文件 ---
+    save_report_to_file(report_lines, output_path / "final_report.txt")
     
-    # 保存错题本 (Bad Cases)
+    df_type_stats.to_csv(output_path / "metrics_by_type.csv", index=False, encoding='utf-8-sig')
+    df_domain_stats.to_csv(output_path / "metrics_by_domain.csv", index=False, encoding='utf-8-sig')
+    df_pair_stats.to_csv(output_path / "metrics_by_pair.csv", index=False, encoding='utf-8-sig')
+    
+    # 错题本保持不变
     bad_cases = df[~df["is_correct"]]
-    bad_case_path = log_dir / "bad_cases.csv"
-    bad_cases.to_csv(bad_case_path, index=False, encoding="utf-8-sig")
+    bad_cases.to_csv(output_path / "bad_cases.csv", index=False, encoding="utf-8-sig")
     
-    print(f"\n📝 详细报告已保存至: {report_path}")
-    print(f"❌ 错题本已保存至: {bad_case_path} (共 {len(bad_cases)} 条错误)")
+    print(f"\n✅ 评估完成！结果已保存至 '{output_dir}' 目录")

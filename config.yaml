@@ -2,7 +2,7 @@
 # 新增：WandB实验配置
 wandb:
   project_name: bert_logic_finetune  # WandB项目名
-  run_name: roberta_logic_finetune_v1  # 实验名（自定义，区分不同实验）
+  run_name: roberta_logic_finetune_v2  # 实验名（自定义，区分不同实验）
 # 新增：日志保存配置
 log:
   save_dir: ./roberta_training_logs  # 本地日志/可视化图片保存目录
@@ -20,10 +20,9 @@ data:
   train_path: "data/train/train.csv"  # 训练集路径
   val_path: "data/train/val.csv"      # 验证集路径
   test_path: "data/train/test.csv"    # 测试集路径
-  manual_test_path: "data/test/deepseek_structured_data_cyclic_domain_960.csv"
 # 训练配置（RTX 5070 Ti 16G专属最优配置）
 train:
-  batch_size: 64
+  batch_size: 32
   learning_rate: 0.00003
   num_epochs: 20
   weight_decay: 0.01

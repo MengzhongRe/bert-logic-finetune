@@ -1,36 +1,62 @@
 # scripts/manual_eval.py
 import torch
+import os
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from scripts.utils import auto_detect_device, cfg
-# ✅ 核心：直接导入我们封装好的评估函数，复用代码
+# 引入修改后的 evaluator
 from scripts.evaluator import run_detailed_eval
 
-# test_path = cfg['data']['manual_test_path']
-# model_path = cfg["model"]["output_dir"]
-model_path = 'uer/roberta-base-finetuned-dianping-chinese'
+# ================= 配置区 =================
+# 指定 Hugging Face 模型 ID 或 本地路径
+# MODEL_PATH = 'uer/roberta-base-finetuned-dianping-chinese'
+MODEL_PATH = 'roberta_finetuned_model'
+# 指定生成的测试数据路径 (请确保与生成文件路径一致)
+TEST_DATA_PATH = 'data/train/test.csv'
+
+# 指定结果输出目录
+OUTPUT_DIR = 'eval_results_finetuned'
+# ==========================================
+
+def auto_detect_device():
+    """简单的设备检测"""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
 def main():
-    print("🚀 启动独立评估模式 (无需重新训练)...")
+    print(f"🚀 启动评估脚本")
+    print(f"🎯 目标模型: {MODEL_PATH}")
+    print(f"📂 测试数据: {TEST_DATA_PATH}")
     
     # 1. 准备环境
     device = auto_detect_device()
+    print(f"⚙️  运行设备: {device}")
 
-    
-    print(f"📂 读取模型权重: {model_path}")
-    
+    # 2. 检查数据文件
+    if not os.path.exists(TEST_DATA_PATH):
+        print(f"❌ 找不到数据文件: {TEST_DATA_PATH}，请先运行数据生成脚本。")
+        return
+
     try:
-        # 2. 加载模型和分词器
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        model = AutoModelForSequenceClassification.from_pretrained(
-            model_path)
+        # 3. 加载模型和分词器
+        print("⏳ 正在加载模型权重 (首次运行可能需要下载)...")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
         model.to(device)
     except Exception as e:
         print(f"❌ 加载模型失败: {e}")
-        print("请检查路径，或确认是否已运行 main.py 完成训练。")
         return
 
-    # 3. 调用公共评估逻辑 (复用 scripts/evaluator.py)
-    # 这样你只需要维护一份 BASELINE 配置
-    run_detailed_eval(model, tokenizer, device)
+    # 4. 调用评估逻辑
+    run_detailed_eval(
+        model=model, 
+        tokenizer=tokenizer, 
+        device=device, 
+        test_path=TEST_DATA_PATH,
+        output_dir=OUTPUT_DIR
+    )
 
 if __name__ == "__main__":
     main()

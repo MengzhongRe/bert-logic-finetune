@@ -154,6 +154,6 @@ def run_training(
     device = trainer.args.device 
     
     # 传入训练好的模型进行深度评估
-    run_detailed_eval(trainer.model, tokenizer, device)
+    run_detailed_eval(trainer.model, tokenizer, device,test_path='data/train/test.csv',output_dir='eval_results_finetuned')
 
     finish_wandb()

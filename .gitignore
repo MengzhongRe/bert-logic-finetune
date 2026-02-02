@@ -22,3 +22,9 @@ roberta_training_logs/
 # 虚拟环境
 venv/
 .venv/
+
+# 数据集
+data/
+
+deploy_dataset.py
+deploy_model.py
