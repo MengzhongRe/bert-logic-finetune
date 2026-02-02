@@ -24,7 +24,8 @@ venv/
 .venv/
 
 # 数据集
-data/
+data/processed
+data/raw
 
 deploy_dataset.py
 deploy_model.py
